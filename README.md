@@ -119,13 +119,6 @@ Requires Python 3 (standard library only).
   whose stdin is prose by construction. It has no effect if you do not use
   that script.
 
-## Maintenance
-
-The published hook is generated from the author's installed copy:
-`python tools/sync_from_local.py --check` reports drift, and without the flag
-it rewrites `hooks/` from `~/.claude/hooks/`, dropping the blocks marked
-`--- private:begin <name>` … `--- private:end <name>`.
-
 ## License
 
 MIT
