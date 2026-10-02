@@ -1,0 +1,21 @@
+{
+  "_comment": "Wiring for ~/.claude/settings.json. Adjust the python command to taste (python / python3 / full path). On Windows, prefix the command with `PYTHONUTF8=1 PYTHONIOENCODING=utf-8 `. CLAUDE_HOOK_USER_LANG selects the language of the line the user sees in the terminal (en or ja); the text the model receives is always English.",
+
+  "env": {
+    "CLAUDE_HOOK_USER_LANG": "en"
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ~/.claude/hooks/governance-file-bash-write-guard.py"
+          }
+        ]
+      }
+    ]
+  }
+}
