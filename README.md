@@ -93,7 +93,7 @@ Requires Python 3 (standard library only).
 
    On Windows, prefix the command with `PYTHONUTF8=1 PYTHONIOENCODING=utf-8 `.
 3. Run the self-test: `python ~/.claude/hooks/governance-file-bash-write-guard.py --selftest`
-   (27 cases: 11 that must block, 16 that must pass).
+   (24 cases: 9 that must block, 15 that must pass).
 
 ## Settings
 
@@ -103,7 +103,6 @@ Requires Python 3 (standard library only).
 | `WRITES` in the hook | What counts as a write |
 | `SEEN_TTL_S` in the hook (default `900`) | How long an identical resend passes |
 | env `CLAUDE_HOOK_USER_LANG` (`en` / `ja`, default `en`) | Language of the one-line notice the user sees in the terminal. The text the agent receives is always English |
-| env `CLAUDE_GOV_BASH_WRITE_SEEN` | Path of the file that remembers blocked commands (default: a file in the system temp directory) |
 
 ## Limits
 
@@ -114,10 +113,6 @@ Requires Python 3 (standard library only).
 - Only `Bash` and `PowerShell` tool calls are inspected. A write made by a
   script file that the agent created earlier and runs later is seen only if
   the command that created the script carried both the path and the write.
-- The hook exempts heredocs fed to `compact-handoff/dump.py` (the handoff
-  dumper from [claude-code-limit-wait](https://github.com/umekatu/claude-code-limit-wait)),
-  whose stdin is prose by construction. It has no effect if you do not use
-  that script.
 
 ## License
 

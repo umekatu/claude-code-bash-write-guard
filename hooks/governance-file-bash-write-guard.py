@@ -27,12 +27,10 @@ ESCAPE HATCH: identical resend within the TTL passes. Its purpose is FALSE-DETEC
 relief: the substring heuristic cannot tell a real governance write from a command that
 merely carries a governance path near a write-like token (git commit messages, test
 payloads, read-and-redirect), so commands of that shape that cannot be restructured
-pass on the second, considered send. Real
-writes have their exit named in the block text: the Edit/Write tools. There is
-deliberately no bypass flag: a correctly-behaving agent exits to the Edit tool as
-directed, and a reflexive one takes the zero-effort resend anyway, so a typed flag
-discriminates nothing — measured over 2,653 session transcripts (2026-08-29), the old
-CLAUDE_GOV_BASH_WRITE_OK flag was used once in its lifetime.
+pass on the second, considered send. Real writes have their exit named in the block
+text: the Edit/Write tools. There is deliberately no bypass flag: a correctly-behaving
+agent exits to the Edit tool as directed, and a reflexive one takes the zero-effort
+resend anyway, so a typed flag discriminates nothing.
 
     python governance-file-bash-write-guard.py --selftest
 """
@@ -166,31 +164,6 @@ def strip_data_heredocs(command):
     return out
 
 
-DUMP_SINK_RX = re.compile(r"[/\\]compact-handoff[/\\]dump\.py\b")
-
-
-def strip_dump_sink_heredocs(command):
-    """Drop every heredoc body when the command feeds the compact-handoff dumper.
-
-    `scripts/compact-handoff/dump.py` writes exactly one file --
-    `<cwd>/.work/compact-handoff/<session_id>.md` -- and its stdin is prose (the
-    handoff body). That prose routinely names governance files AND carries
-    redirection-shaped tokens (`<sid>/subagents/` reads as `>/`), which is the
-    combination the ordinary heredoc filter keeps: a 2026-08-30 compact-loop
-    Step 3 dump was blocked exactly this way, mid-handoff at nearly full
-    context. For this program the body is
-    data by construction, so it is dropped without the write-primitive test.
-    A residual compound command (`dump.py <<EOF .. EOF && <write>`) keeps its
-    own paths and primitives outside the bodies and is still judged.
-    """
-    if not DUMP_SINK_RX.search(command):
-        return command
-    out = command
-    for m in HEREDOC_RX.finditer(command):
-        out = out.replace(m.group(2), "", 1)
-    return out
-
-
 MSG_ARG_RX = re.compile(
     r"(?:^|\s)(?:-m|--message(?:=|\s+))\s*(\"(?:[^\"\\]|\\.)*\"|'[^']*')",
     re.DOTALL)
@@ -244,8 +217,8 @@ def judge(command):
     """Return (kind, hit, primitive) when the command must be blocked, else None."""
     if not command:
         return None
-    command = strip_null_redirects(strip_data_heredocs(strip_message_args(
-        strip_dump_sink_heredocs(strip_angle_emails(command)))))
+    command = strip_angle_emails(command)
+    command = strip_null_redirects(strip_data_heredocs(strip_message_args(command)))
     kind, hit = find(GOVERNANCE, command)
     if not kind:
         kind, hit = find(GOV_DIRS, command)
@@ -349,13 +322,8 @@ def selftest():
         ("rules file via tee", "echo x | tee %s/rules/git.md" % home),
         ("PowerShell Set-Content on an agents file",
          'Set-Content %s/agents/worker.md -Value $t' % home),
-        ("retired flag prefix does not bypass",
-         'CLAUDE_GOV_BASH_WRITE_OK=1 sed -i s/a/b/ E:/proj/CLAUDE.md'),
         ("commit message stripped but a real redirect outside it still blocks",
          'cd %s/projects/E--x/memory && git commit -m "note" && echo x > note.md' % home),
-        ("governance write riding along a dump.py invocation still blocks",
-         'python %s/scripts/compact-handoff/dump.py --topic t <<\'EOF\'\nbody\nEOF\n'
-         '&& sed -i s/a/b/ %s/skills/compact-loop/SKILL.md' % (home, home)),
         ("redirect to a memory file whose name starts with digits",
          'cd %s/projects/E--x/memory && echo x > 2026-09-18_note.md' % home),
     ]
@@ -388,18 +356,12 @@ def selftest():
         ("ASCII arrow in grep prose over a governance file is not a redirect",
          "grep 'A->B' E:/proj/CLAUDE.md"),
         ("heredoc commit message from a memory-repo cwd whose trailer email "
-         "bracket is followed by another trailer line (the 2026-09-02 shape)",
+         "bracket is followed by another trailer line",
          'cd %s/projects/E--x/memory && git add subprocess_isolation.md '
          '&& git commit -q -F - <<\'EOF\'\nrecord the exemption\n\n'
          'Co-Authored-By: Claude <noreply@anthropic.com>\n'
          'Claude-Session: https://claude.ai/code/session_x\nEOF' % home),
-        ("handoff dump whose body names a references file next to a "
-         "redirection-shaped token (the 2026-08-30 Step 3 shape)",
-         'python %s/scripts/compact-handoff/dump.py --topic "econ" '
-         '--session-id x <<\'EOF\'\nNote %s/references/context_'
-         'internals.md and the corpus `<sid>/subagents/` files.\nEOF' % (home, home)),
-        ("awk numeric comparison over a memory file is not a redirect "
-         "(the 2026-09-18 shape)",
+        ("awk numeric comparison over a memory file is not a redirect",
          "cd %s/projects/E--x/memory && awk 'NR>=8 && NR<=39 && length($0)>0 "
          "{print NR\": \"substr($0,1,160)}' video_models.md | head -40" % home),
     ]

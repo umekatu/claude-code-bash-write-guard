@@ -90,7 +90,7 @@ Python 3 が必要です (標準ライブラリのみ)。
 
    Windows ではコマンドの先頭に `PYTHONUTF8=1 PYTHONIOENCODING=utf-8 ` を付けてください。
 3. 自己テストを実行します: `python ~/.claude/hooks/governance-file-bash-write-guard.py --selftest`
-   (27 件: ブロックすべき 11 件、通すべき 16 件)。
+   (24 件: ブロックすべき 9 件、通すべき 15 件)。
 
 ## 設定
 
@@ -100,7 +100,6 @@ Python 3 が必要です (標準ライブラリのみ)。
 | フック内の `WRITES` | 書き込みとみなす操作 |
 | フック内の `SEEN_TTL_S` (既定 `900`) | 同一コマンドの再送が通る時間 (秒) |
 | 環境変数 `CLAUDE_HOOK_USER_LANG` (`en` / `ja`、既定 `en`) | ユーザーが端末で見る 1 行の通知の言語。エージェントが受け取る文面は常に英語 |
-| 環境変数 `CLAUDE_GOV_BASH_WRITE_SEEN` | ブロックしたコマンドを覚えておくファイルのパス (既定: システムの一時ディレクトリ内) |
 
 ## 限界
 
@@ -111,10 +110,6 @@ Python 3 が必要です (標準ライブラリのみ)。
 - 検査するのは `Bash` と `PowerShell` のツール呼び出しだけです。エージェントが
   先に作ったスクリプトファイルを後で実行して書き込む場合は、スクリプトを作った
   コマンドにパスと書き込み操作の両方が含まれていたときだけ検出されます。
-- `compact-handoff/dump.py`
-  ([claude-code-limit-wait](https://github.com/umekatu/claude-code-limit-wait) の
-  引き継ぎ書き出しスクリプト) に渡すヒアドキュメントは対象外にしています。この
-  スクリプトの標準入力は文章だからです。使っていなければ影響はありません。
 
 ## ライセンス
 
