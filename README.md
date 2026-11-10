@@ -22,44 +22,63 @@ one-liner does not.
 
 ## What it does
 
-On every `Bash` / `PowerShell` tool call the hook searches the command text
-for **a protected path** and **a write primitive**. When both are present the
-call is blocked and the agent is told to use Edit or Write.
+On every `Bash` / `PowerShell` tool call the hook runs two checks and blocks
+when either one fires; the agent is told to use Edit or Write.
 
-Protected paths (`.md` files only; edit the lists to fit your setup):
+1. **Whole-command search.** It looks in the command text for **a protected
+   path** and **a write primitive**. When both are present the call is blocked.
+2. **Destination check.** It splits the command into shell segments (tracking
+   `cd`, subshells and brace groups), finds the *destination* of each write
+   (a redirect target, the operand of `sed -i`, `tee`, a copy/move target, a
+   PowerShell content cmdlet's path), resolves it against the segment's
+   working directory, and blocks when it is a protected file. This check only
+   adds blocks; it never exempts a command the first check caught. Python,
+   Node, Perl and Ruby programs (inline or heredoc) are inspected for a
+   protected path plus a write call such as `open(..., "w")`.
+
+Protected paths (`.md` files only; matched on the whole file name, so
+`NOT_CLAUDE.md` and `CLAUDE.md.bak` do not count; edit the lists to fit your
+setup):
 
 | List | Default entries |
 | --- | --- |
 | `GOVERNANCE` (full paths) | any `CLAUDE.md`, any `SKILL.md`, `.claude/{rules,references,agents}/*.md`, `.claude/projects/<project>/memory/*.md` |
-| `GOV_DIRS` (a directory named in the command plus any bare `*.md` token, for `cd <dir> && cat >> notes.md`) | `.claude/references`, `.claude/rules`, `.claude/agents`, any `memory` directory |
+| `legacy_GOV_DIRS` (a directory named in the command plus any bare `*.md` token, for `cd <dir> && cat >> notes.md`) | `.claude/references`, `.claude/rules`, `.claude/agents`, any `memory` directory |
 
-Write primitives (`WRITES`):
+Write primitives (`WRITES` for programs, `legacy_WRITES` for the whole-command
+search):
 
 | Primitive | Examples |
 | --- | --- |
 | Shell redirection | `> file`, `>> file` |
-| In-place edit | `sed -i` |
+| In-place edit | `sed -i` (options in any order, `--in-place`) |
 | `tee` | `echo x \| tee file` |
-| Python | `open(..., "w")` and the other write modes, `.write_text(`, `.write_bytes(`, `truncate(` |
-| PowerShell | `Set-Content`, `Add-Content`, `Out-File` |
+| Copy / move / install | `cp`, `mv`, `install` (including `-t DIR`), `Copy-Item`, `Move-Item`: the destination is checked |
+| Python and other interpreters | `open(..., "w")` and the other write modes, `.write_text(`, `.write_bytes(`, `truncate(` |
+| PowerShell | `Set-Content`, `Add-Content`, `Out-File` (and the `sc` / `ac` aliases) |
 
 Before judging, the hook drops text that looks like a write but is not one:
 
 - quoted `-m` / `--message` payloads (commit messages are data)
 - redirections to `/dev/null`, `$null`, `NUL`
 - heredoc bodies that contain no write primitive (prose that merely mentions a
-  protected file)
+  protected file), and output or heredocs sent to documentation files
+- read-only segments such as `grep`, `rg`, `wc`, `Get-Content`, `Select-String`,
+  `Test-Path`, `git status|diff|show|log`
 - `<name@host>` address tokens (commit trailers)
 - ASCII arrows (`->`, `=>`, `<->`) and numeric comparisons (`x>0`)
+- `#` comments
 
 ## The escape hatch
 
-Detection is a substring search over the whole command, with no shell
-parsing, so it can fire on a command that only *reads* a protected file and
-writes somewhere else (`grep x CLAUDE.md > out.txt`). For those cases,
-**sending the identical command again within 15 minutes passes**. The block
-message tells the agent this, and tells it that the resend is for false
-detections — a real write belongs in the Edit tool.
+The whole-command search is a text search, so it can fire on a command that
+only *reads* a protected file and writes somewhere else, or that merely prints
+a protected path as an example. For those cases, **sending the identical
+command again within 15 minutes passes**. The block message tells the agent
+this, and tells it that the resend is for false detections — a real write
+belongs in the Edit tool. The record of blocked commands is kept per agent (or
+session) and working directory, written atomically, and trimmed to the newest
+1000 entries.
 
 There is deliberately no bypass flag or environment variable. An agent that
 behaves correctly switches to Edit as directed, and one that does not would
@@ -99,17 +118,18 @@ Requires Python 3 (standard library only).
 
 | Where | What |
 | --- | --- |
-| `GOVERNANCE`, `GOV_DIRS` in the hook | Which files are protected |
-| `WRITES` in the hook | What counts as a write |
+| `GOVERNANCE`, `legacy_GOVERNANCE`, `legacy_GOV_DIRS` in the hook | Which files are protected (keep the lists in step) |
+| `WRITES`, `legacy_WRITES` in the hook | What counts as a write |
 | `SEEN_TTL_S` in the hook (default `900`) | How long an identical resend passes |
+| `MAX_ENTRIES` in the hook (default `1000`) | How many blocked commands are remembered |
 | env `CLAUDE_HOOK_USER_LANG` (`en` / `ja`, default `en`) | Language of the one-line notice the user sees in the terminal. The text the agent receives is always English |
 
 ## Limits
 
 - This is a guard against a habit, not a security boundary. The identical
   resend passes by design.
-- Only the primitives listed above are detected. `cp`, `mv`, `git checkout`,
-  `git apply` and a path assembled from variables are not.
+- Only the primitives listed above are detected. `git checkout`, `git apply`
+  and a path assembled from shell variables are not.
 - Only `Bash` and `PowerShell` tool calls are inspected. A write made by a
   script file that the agent created earlier and runs later is seen only if
   the command that created the script carried both the path and the write.
